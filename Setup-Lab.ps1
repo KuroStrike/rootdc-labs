@@ -64,12 +64,21 @@ if ($Stage -eq 'Auto') { $Stage = if ($isDC) { 'Scenario' } else { 'DC' } }
 function Invoke-DcStage {
     if ($isDC) { Ok "Already a domain controller - skipping promotion."; return }
 
-    Info "Installing the AD DS role..."
+       Info "Installing the AD DS role..."
     Install-WindowsFeature AD-Domain-Services -IncludeManagementTools | Out-Null
+
+    # Copy the whole lab folder to a fixed path so the resume survives even if
+    # the script was launched from a USB drive, a Downloads folder that gets
+    # cleaned, or copy-pasted into console (no $PSCommandPath).
+    $labRoot = 'C:\RootDC\labs'
+    $srcDir  = Split-Path -Parent $PSCommandPath
+    if (-not $srcDir) { $srcDir = $PWD.Path }
+    New-Item -ItemType Directory $labRoot -Force | Out-Null
+    Copy-Item "$srcDir\*" $labRoot -Recurse -Force
+    $self = Join-Path $labRoot 'Setup-Lab.ps1'
 
     # Auto-resume the scenario step after the reboot (runs at next admin logon),
     # preserving the chosen scenario.
-    $self = $PSCommandPath
     $runOnce = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'
     Set-ItemProperty -Path $runOnce -Name 'RootDCLab' `
         -Value "powershell.exe -ExecutionPolicy Bypass -NoExit -File `"$self`" -Stage Scenario -Scenario $Scenario"
